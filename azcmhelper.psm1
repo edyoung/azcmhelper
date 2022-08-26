@@ -15,8 +15,8 @@ function Save-AzcmState
     $dataPath = "$($env:ProgramData)\AzureConnectedMachineAgent"
     $null = new-item -type Directory -Path $DestinationPath\Config -Force
     $null = new-item -type Directory -Path $DestinationPath\Certs -Force
-    $null = Copy-Item $dataPath\Config -Filter * -Destination $DestinationPath\Config -Force
-    $null = Copy-Item $dataPath\Certs -Filter * -Destination $DestinationPath\Certs -Force    
+    $null = Copy-Item $dataPath\Config\* -Destination $DestinationPath\Config -Force
+    $null = Copy-Item $dataPath\Certs\* -Destination $DestinationPath\Certs -Force    
 } 
 
 function Stop-AzcmAgent
@@ -74,8 +74,10 @@ function Restore-AzcmState
 
     $dataPath = "$($env:ProgramData)\AzureConnectedMachineAgent"
 
-    Copy-Item $sourcepath\Config -Filter * -Destination $dataPath\Config -Force
-    Copy-Item $SourcePath\Certs -Filter * -Destination $dataPath\Certs -Force    
+    Copy-Item $sourcepath\Config\* -Destination $dataPath\Config -Force
+    Copy-Item $SourcePath\Certs\* -Destination $dataPath\Certs -Force    
+
+    Restart-AzcmAgent
 }
 
 function Uninstall-Azcmagent
@@ -136,6 +138,9 @@ function Get-AzcmagentInstallInfo() {
     }
 }
 
+<#
+.DESCRIPTION Connect the agent to Azure. Uses the current subscription and tenant from 
+#>
 function Connect-AzcmAgent {
     [Cmdletbinding()]
     param(
@@ -196,6 +201,18 @@ function Connect-AzcmAgent {
     Write-Verbose "Connect completed with $result"
 }
 
+function Get-AzcmResourceId {
+    $p = (Start-Process -FilePath azcmagent.exe -ArgumentList @("show", "--json") -NoNewWindow -Wait -PassThru)
+    $result = $p.ExitCode
+    if ($result -eq 0) {
+        $j = ($p.StandardOutput.ReadToEnd() | ConvertFrom-Json)
+        $j
+    }    
+} 
+
+<#
+.DESCRIPTION Disconnect the agent from Azure
+#>
 function Disconnect-AzcmAgent {
 
     [CmdletBinding()]
@@ -208,3 +225,31 @@ function Disconnect-AzcmAgent {
     $result = $p.ExitCode
     Write-Verbose "Disconnect completed with $result"
 }
+
+function Edit-AzcmExtensionLog {
+    $editor = "notepad.exe"
+    if ($env:EDITOR) {
+        $editor = $env:EDITOR
+    }
+    & $editor $env:ProgramData\GuestConfig\ext_mgr_logs\gc_ext.log
+}
+
+function Edit-AzcmLog {
+    $editor = "notepad.exe"
+    if ($env:EDITOR) {
+        $editor = $env:EDITOR
+    }
+    & $editor $env:ProgramData\AzureConnectedMachineAgent\Log\himds.log
+}
+
+function Edit-AzcmAgentLog {
+    $editor = "notepad.exe"
+    if ($env:EDITOR) {
+        $editor = $env:EDITOR
+    }
+    & $editor $env:ProgramData\AzureConnectedMachineAgent\Log\azcmagent.log
+}
+
+# Early in development, Azcmagent was called 'aha' (Azure Hybrid Agent). 
+# Reintroduce that via alias just for fun
+New-Alias -Name aha -Value azcmagent
