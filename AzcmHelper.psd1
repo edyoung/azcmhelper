@@ -9,7 +9,7 @@
 RootModule = 'azcmhelper'
 
 # Version number of this module.
-ModuleVersion = '0.0.1'
+ModuleVersion = '0.2'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()

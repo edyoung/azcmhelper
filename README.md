@@ -29,6 +29,10 @@ You can delete, backup and restore current agent state. This can be useful if yo
 - `Save-AzcmState -DestinationPath c:\foo` - Copy current state into that directory
 - `Restore-AzcmState -SourcePath c:\foo` - Surprise! copy it back and restart the agent 
 
+# Extensions and Scripts
+- `Invoke-AzcmScript -Local -Command 'dir'` - Invoke 'dir' via the custom script extension on the local machine
+- `Invoke-AzcmScript -MachineName foo -ResourceGroup bar -Command 'hostname'` - Invoke 'hostname' via CSE on machine foo in resourcegroup bar
+
 # Info
 - `Get-AzcmResourceId` - print out resource id of current machine, assuming it is connected
 - `Edit-AzcmAgentLog` - look at latest azcmagent log files
