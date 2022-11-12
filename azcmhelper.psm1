@@ -99,30 +99,6 @@ function Uninstall-Azcmagent
     }
 }
 
-function Install-Azcmagent
-{
-    [CmdletBinding()]
-    param()
-
-    $installinfo = Get-AzcmagentInstallInfo   
-    if ($installinfo -and ! $Force) {
-        Write-Warning "Azcmagent $($installinfo.VersionString) already installed. Use -Force if desired"
-        return        
-    }
-
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-
-    # Download the installation package
-    Invoke-WebRequest -Uri "https://aka.ms/azcmagent-windows" -TimeoutSec 30 -OutFile "$env:TEMP\install_windows_azcmagent.ps1"
-
-    # Install the hybrid agent
-    & "$env:TEMP\install_windows_azcmagent.ps1"
-    if($LASTEXITCODE -ne 0) {
-        throw "Failed to install the hybrid agent: $Lastexitcode"
-    }
-}
-
-
 function Get-AzcmagentInstallInfo() {
     $Installer = New-Object -ComObject WindowsInstaller.Installer
     $InstallerProducts = $Installer.ProductsEx("", "", 7); 
@@ -137,6 +113,37 @@ function Get-AzcmagentInstallInfo() {
         }
     }
 }
+
+function Install-Azcmagent
+{
+    [CmdletBinding()]
+    param(
+        $AltDownload
+    )
+
+    $installinfo = Get-AzcmagentInstallInfo   
+    if ($installinfo) {
+        Write-Verbose "Already Installed, uninstalling first"
+        Uninstall-Azcmagent
+    }
+
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+    # Download the installation package
+    Invoke-WebRequest -Uri "https://aka.ms/azcmagent-windows" -TimeoutSec 30 -OutFile "$env:TEMP\install_windows_azcmagent.ps1"
+
+    $scriptParams=@{
+        AltDownload=$AltDownload
+    }
+    # Install the hybrid agent
+    & "$env:TEMP\install_windows_azcmagent.ps1" @scriptParams
+    if($LASTEXITCODE -ne 0) {
+        throw "Failed to install the hybrid agent: $Lastexitcode"
+    }
+}
+
+
+
 
 <#
 .DESCRIPTION Connect the agent to Azure. Uses the current subscription and tenant from 
@@ -250,6 +257,70 @@ function Edit-AzcmAgentLog {
     & $editor $env:ProgramData\AzureConnectedMachineAgent\Log\azcmagent.log
 }
 
+function Invoke-AzcmScript {
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ParameterSetName="othermachine")]
+        $MachineName,
+
+        [Parameter(Mandatory=$true,ParameterSetName="othermachine")]
+        $ResourceGroup,
+
+        [Parameter(Mandatory=$true,ParameterSetName="othermachine")]
+        $Location,
+
+        [Parameter(Mandatory=$true,ParameterSetName="local")]
+        [switch]$Local,
+
+        [Parameter(Mandatory=$false)]
+        $ExtensionName="csetest",
+        
+        [Parameter(Mandatory=$false)]
+        $Command="hostname"        
+    )
+
+    if($Local)
+    {
+        $agentSettings = (& Azcmagent show --json) | ConvertFrom-Json
+        $MachineName = $agentSettings.resourceName
+        $ResourceGroup = $agentSettings.ResourceGroup
+        $Location = $agentSettings.Location
+    }
+
+    Write-Verbose "Running command '$command' on $MachineName in $ResourceGroup in $Location"
+    $Settings = @{ "commandToExecute" = "$command" }
+    New-AzConnectedMachineExtension -MachineName $MachineName -Name $ExtensionName -ResourceGroupName azcmagenttest -ExtensionType CustomScriptExtension -Settings $Settings -Publisher "Microsoft.Compute" -Location $Location
+}
+
+function Get-AzcmExtensionVersion {
+    [CmdletBinding()]
+    param(    
+        [Parameter(Mandatory=$true)]
+        $Location,
+
+        [Parameter(Mandatory=$false)]
+        $Publisher="Microsoft.Compute",
+
+        [Parameter(Mandatory=$false)]
+        $ExtensionType="CustomScriptExtension",
+        
+        [Parameter(Mandatory=$false)]
+        $Subscription
+    )
+
+    $context = Get-AzContext
+    if(! $subscription) {
+        # try the current subscription from Az module
+        $subscription = $context.Subscription
+    }
+
+    $token = (Get-AzAccessToken).Token
+    $response = Invoke-WebRequest "https://management.azure.com/subscriptions/$subscription/providers/Microsoft.HybridCompute/locations/$location/publishers/$publisher/extensionTypes/$extensionType/versions/?api-version=2022-08-11-preview" -Headers @{Authorization="Bearer $token"}
+    $json = ConvertFrom-Json $response.Content
+    $json.properties
+}
+
 # Early in development, Azcmagent was called 'aha' (Azure Hybrid Agent). 
 # Reintroduce that via alias just for fun
-New-Alias -Name aha -Value azcmagent
+New-Alias -Name aha -Value azcmagent -ErrorAction SilentlyContinue
