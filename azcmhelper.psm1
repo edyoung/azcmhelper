@@ -1,5 +1,5 @@
 
-#Requires -Modules Az.Accounts
+#Requires -Modules Az.Accounts, Az.ConnectedMachine
 
 Set-StrictMode -Version latest
 $ErrorActionPreference = "Stop"
