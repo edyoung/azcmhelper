@@ -164,7 +164,10 @@ function Connect-AzcmAgent {
         $location,
 
         [Parameter(Mandatory=$false)]
-        $name
+        $name,
+
+        [Parameter(Mandatory=$false)]
+        $PrivateLinkScope
     )
 
     $context = Get-AzContext
@@ -197,6 +200,10 @@ function Connect-AzcmAgent {
         $params = $params + @( "-n", $name)
     }
 
+    if($PrivateLinkScope) {
+        $params = $params + @("--private-link-scope", $PrivateLinkScope)
+    }
+
     Write-Verbose "Onboarding with $($params -join ' ')"
     
     $params = $params + @(
@@ -209,13 +216,36 @@ function Connect-AzcmAgent {
 }
 
 function Get-AzcmResourceId {
-    $p = (Start-Process -FilePath azcmagent.exe -ArgumentList @("show", "--json") -NoNewWindow -Wait -PassThru)
-    $result = $p.ExitCode
-    if ($result -eq 0) {
-        $j = ($p.StandardOutput.ReadToEnd() | ConvertFrom-Json)
-        $j
-    }    
+    [CmdletBinding()]
+    param()
+
+    $agentSettings = (& Azcmagent show --json) | ConvertFrom-Json
+    $MachineName = $agentSettings.resourceName
+    $ResourceGroup = $agentSettings.ResourceGroup
+    $Location = $agentSettings.Location
+    $Tenant = $agentSettings.TenantId
+    $Subscription = $agentSettings.SubscriptionId
+
+    $resourceId = "/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.HybridCompute/machines/$MachineName" 
+    return $resourceId
 } 
+
+function Get-AzcmResource {
+
+    [CmdletBinding()]
+    param(
+        $ArmRegion,
+        $ApiVersion="2022-11-10"
+    )
+    $resourceId = Get-AzcmResourceId
+    
+    if($ArmRegion) { $ArmRegion += "."}
+
+    $url = "https://$($ArmRegion)management.azure.com/$($resourceId)?api-version=$apiversion"
+    Write-Verbose "Checking URl $url"
+    # Invoke-AzRestMethod doesn't allow us to override the ARM URL :-(
+    & az rest --method get --url $url --resource https://management.azure.com/ | ConvertFrom-Json
+}
 
 <#
 .DESCRIPTION Disconnect the agent from Azure
@@ -290,7 +320,7 @@ function Invoke-AzcmScript {
 
     Write-Verbose "Running command '$command' on $MachineName in $ResourceGroup in $Location"
     $Settings = @{ "commandToExecute" = "$command" }
-    New-AzConnectedMachineExtension -MachineName $MachineName -Name $ExtensionName -ResourceGroupName azcmagenttest -ExtensionType CustomScriptExtension -Settings $Settings -Publisher "Microsoft.Compute" -Location $Location
+    New-AzConnectedMachineExtension -MachineName $MachineName -Name $ExtensionName -ResourceGroupName azcmagenttest -ExtensionType CustomScriptExtension -Settings $Settings -Publisher "Microsoft.Compute" -Location $Location -Verbose:$VerbosePreference
 }
 
 function Get-AzcmExtensionVersion {
@@ -320,6 +350,32 @@ function Get-AzcmExtensionVersion {
     $json = ConvertFrom-Json $response.Content
     $json.properties
 }
+
+function Get-AzcmPortalUrl {
+    [CmdletBinding()]
+    param(
+
+    )
+
+    $agentSettings = (& Azcmagent show --json) | ConvertFrom-Json
+    $MachineName = $agentSettings.resourceName
+    $ResourceGroup = $agentSettings.ResourceGroup
+    $Location = $agentSettings.Location
+    $Tenant = $agentSettings.TenantId
+    $Subscription = $agentSettings.SubscriptionId
+
+    "https://portal.azure.com/#@$Tenant/resource/subscriptions/$Subscription/resourceGroups/$ResourceGroup/providers/Microsoft.HybridCompute/machines/$MachineName/overview"
+}
+
+function Invoke-AzcmPortal {
+    [CmdletBinding()]
+    param()
+
+    $url = Get-AzcmPortalUrl
+    Write-Verbose "Portal URL $url"
+    & start $url
+}
+
 
 # Early in development, Azcmagent was called 'aha' (Azure Hybrid Agent). 
 # Reintroduce that via alias just for fun

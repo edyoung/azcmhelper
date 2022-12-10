@@ -9,7 +9,7 @@
 RootModule = 'azcmhelper'
 
 # Version number of this module.
-ModuleVersion = '0.2'
+ModuleVersion = '0.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -21,7 +21,7 @@ GUID = '94d95259-edd7-4e23-a1e7-9a8cec536019'
 Author = 'edyoung'
 
 # Company or vendor of this module
-CompanyName = 'Unknown'
+CompanyName = 'None'
 
 # Copyright statement for this module
 Copyright = '(c) edyoung. All rights reserved.'
@@ -82,8 +82,11 @@ FunctionsToExport = @(
     'Edit-AzcmLog',
     'Edit-AzcmAgentLog',
     'Get-AzcmResourceId',
+    'Get-AzcmResource',
     'Invoke-AzcmScript',
-    'Get-AzcmExtensionVersion'
+    'Get-AzcmExtensionVersion',    
+    'Get-AzcmPortalUrl',
+    'Invoke-AzcmPortal'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
